@@ -24,10 +24,10 @@ export interface SemesterData {
   position: string;
   period: string;
   semesterLabel: string;
-  partASubtotal: number;
+  partASubtotal: number | null;
   partBSubtotal: number | null;
-  overallNumerical: number;
-  overallAdjectival: string;
+  overallNumerical: number | null;
+  overallAdjectival: string | null;
   partAWeight: number;
   partBWeight: number;
   sis: SI[];
