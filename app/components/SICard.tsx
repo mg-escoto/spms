@@ -320,7 +320,7 @@ export default function SICard({ si, semesterId }: Props) {
           <div className="border-t border-dashed border-teal-200" />
 
           {/* Monitoring Tool */}
-          <MonitoringTool storageKey={monitoringKey} />
+          <MonitoringTool storageKey={monitoringKey} dims={si.ratings.map((r) => r.dim)} />
         </div>
       )}
     </div>

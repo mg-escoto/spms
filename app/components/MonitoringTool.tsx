@@ -14,8 +14,15 @@ export interface MonitoringEntry {
   quality: number | null;
 }
 
+const DIM_LABELS: Record<string, { field: "timeliness" | "quantity" | "quality"; label: string }> = {
+  T: { field: "timeliness", label: "Timeliness" },
+  Qn: { field: "quantity", label: "Quantity" },
+  Ql: { field: "quality", label: "Quality" },
+};
+
 interface Props {
   storageKey: string;
+  dims: string[];
 }
 
 function calcAvg(entries: MonitoringEntry[], field: "timeliness" | "quantity" | "quality"): number | null {
@@ -24,7 +31,8 @@ function calcAvg(entries: MonitoringEntry[], field: "timeliness" | "quantity" | 
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-export default function MonitoringTool({ storageKey }: Props) {
+export default function MonitoringTool({ storageKey, dims }: Props) {
+  const activeDims = dims.map((d) => DIM_LABELS[d]).filter(Boolean);
   const [entries, setEntries] = useState<MonitoringEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -62,9 +70,9 @@ export default function MonitoringTool({ storageKey }: Props) {
     setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
-  const tAvg = calcAvg(entries, "timeliness");
-  const qnAvg = calcAvg(entries, "quantity");
-  const qlAvg = calcAvg(entries, "quality");
+  const dimAvgs = Object.fromEntries(
+    activeDims.map(({ field }) => [field, calcAvg(entries, field)])
+  );
 
   return (
     <div className="space-y-2">
@@ -93,9 +101,9 @@ export default function MonitoringTool({ storageKey }: Props) {
                 <th className="px-2 py-2 text-left font-medium border-r border-teal-500">Classification</th>
                 <th className="px-2 py-2 text-left font-medium border-r border-teal-500 whitespace-nowrap">Target Date</th>
                 <th className="px-2 py-2 text-left font-medium border-r border-teal-500 whitespace-nowrap">Actual Date Released / Acted Upon</th>
-                <th className="px-2 py-2 text-center font-medium border-r border-teal-500 w-20">Timeliness</th>
-                <th className="px-2 py-2 text-center font-medium border-r border-teal-500 w-20">Quantity</th>
-                <th className="px-2 py-2 text-center font-medium border-r border-teal-500 w-20">Quality</th>
+                {activeDims.map(({ label }) => (
+                  <th key={label} className="px-2 py-2 text-center font-medium border-r border-teal-500 w-20">{label}</th>
+                ))}
                 <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
@@ -136,42 +144,20 @@ export default function MonitoringTool({ storageKey }: Props) {
                       className="text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
                     />
                   </td>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
-                    <input
-                      type="number"
-                      min="1"
-                      max="5"
-                      step="0.01"
-                      value={entry.timeliness ?? ""}
-                      onChange={(e) => update(entry.id, "timeliness", e.target.value ? parseFloat(e.target.value) : null)}
-                      className="w-full text-xs bg-transparent focus:outline-none text-center focus:ring-1 focus:ring-teal-300 rounded"
-                      placeholder="—"
-                    />
-                  </td>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
-                    <input
-                      type="number"
-                      min="1"
-                      max="5"
-                      step="0.01"
-                      value={entry.quantity ?? ""}
-                      onChange={(e) => update(entry.id, "quantity", e.target.value ? parseFloat(e.target.value) : null)}
-                      className="w-full text-xs bg-transparent focus:outline-none text-center focus:ring-1 focus:ring-teal-300 rounded"
-                      placeholder="—"
-                    />
-                  </td>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
-                    <input
-                      type="number"
-                      min="1"
-                      max="5"
-                      step="0.01"
-                      value={entry.quality ?? ""}
-                      onChange={(e) => update(entry.id, "quality", e.target.value ? parseFloat(e.target.value) : null)}
-                      className="w-full text-xs bg-transparent focus:outline-none text-center focus:ring-1 focus:ring-teal-300 rounded"
-                      placeholder="—"
-                    />
-                  </td>
+                  {activeDims.map(({ field }) => (
+                    <td key={field} className="border-b border-r border-gray-100 px-1 py-1">
+                      <input
+                        type="number"
+                        min="1"
+                        max="5"
+                        step="0.01"
+                        value={entry[field] ?? ""}
+                        onChange={(e) => update(entry.id, field, e.target.value ? parseFloat(e.target.value) : null)}
+                        className="w-full text-xs bg-transparent focus:outline-none text-center focus:ring-1 focus:ring-teal-300 rounded"
+                        placeholder="—"
+                      />
+                    </td>
+                  ))}
                   <td className="border-b border-gray-100 px-1 py-1 text-center">
                     <button
                       onClick={() => remove(entry.id)}
@@ -188,15 +174,11 @@ export default function MonitoringTool({ storageKey }: Props) {
                 <td colSpan={4} className="border-t border-gray-200 px-2 py-2 text-right text-xs text-gray-600 font-semibold">
                   Average
                 </td>
-                <td className={`border-t border-l border-gray-200 px-2 py-2 text-center text-xs ${ratingColor(tAvg)}`}>
-                  {fmt(tAvg)}
-                </td>
-                <td className={`border-t border-l border-gray-200 px-2 py-2 text-center text-xs ${ratingColor(qnAvg)}`}>
-                  {fmt(qnAvg)}
-                </td>
-                <td className={`border-t border-l border-gray-200 px-2 py-2 text-center text-xs ${ratingColor(qlAvg)}`}>
-                  {fmt(qlAvg)}
-                </td>
+                {activeDims.map(({ field }) => (
+                  <td key={field} className={`border-t border-l border-gray-200 px-2 py-2 text-center text-xs ${ratingColor(dimAvgs[field] ?? null)}`}>
+                    {fmt(dimAvgs[field] ?? null)}
+                  </td>
+                ))}
                 <td className="border-t border-gray-200"></td>
               </tr>
             </tbody>
