@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import type { SI, RatingEntry } from "@/data/semester-2-2025";
 import { ratingColor, ratingBadge, fmt } from "@/app/lib/utils";
 import MonitoringTool from "./MonitoringTool";
+import type { MonitoringEntry } from "./MonitoringTool";
 
 interface Props {
   si: SI;
   semesterId: string;
+  defaultMonitoringEntries?: Omit<MonitoringEntry, "id">[];
 }
 
 type EditableRating = {
@@ -36,7 +38,7 @@ function toEditable(si: SI): EditableSI {
   };
 }
 
-export default function SICard({ si, semesterId }: Props) {
+export default function SICard({ si, semesterId, defaultMonitoringEntries }: Props) {
   const overrideKey = `spms_si_${semesterId}_${si.id}`;
   const monitoringKey = `spms_monitoring_${semesterId}_${si.id}`;
 
@@ -320,7 +322,11 @@ export default function SICard({ si, semesterId }: Props) {
           <div className="border-t border-dashed border-teal-200" />
 
           {/* Monitoring Tool */}
-          <MonitoringTool storageKey={monitoringKey} dims={si.ratings.map((r) => r.dim)} />
+          <MonitoringTool
+            storageKey={monitoringKey}
+            dims={si.ratings.map((r) => r.dim)}
+            defaultEntries={defaultMonitoringEntries}
+          />
         </div>
       )}
     </div>

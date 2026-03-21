@@ -3,6 +3,7 @@
 import { useState } from "react";
 import sem2025_2 from "@/data/semester-2-2025";
 import sem2026_1 from "@/data/semester-1-2026";
+import { monitoringDefaults } from "@/data/monitoring-defaults-2025-2";
 import SICard from "@/app/components/SICard";
 import Sidebar, { type SemesterOption } from "@/app/components/Sidebar";
 import { overallBadgeClass, fmt } from "@/app/lib/utils";
@@ -213,7 +214,14 @@ export default function Dashboard() {
               <p className="text-center text-gray-400 py-10">No results found.</p>
             ) : (
               sis.map((si) => (
-                <SICard key={`${activeSemId}-${si.id}`} si={si} semesterId={activeSemId} />
+                <SICard
+                  key={`${activeSemId}-${si.id}`}
+                  si={si}
+                  semesterId={activeSemId}
+                  defaultMonitoringEntries={
+                    activeSemId === "2025-2" ? monitoringDefaults[si.id] : undefined
+                  }
+                />
               ))
             )}
           </div>

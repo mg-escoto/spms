@@ -6,41 +6,62 @@ import { ratingColor, fmt } from "@/app/lib/utils";
 export interface MonitoringEntry {
   id: string;
   activity: string;
-  classification: string;
-  targetDate: string;
-  actualDate: string;
+  referenceNo: string;
+  period: string;
+  dateReceived: string;
+  dateCompleted: string;
   timeliness: number | null;
-  quantity: number | null;
   quality: number | null;
+  quantity: number | null;
+  remarks: string;
 }
 
-const DIM_LABELS: Record<string, { field: "timeliness" | "quantity" | "quality"; label: string }> = {
-  T: { field: "timeliness", label: "Timeliness" },
-  Qn: { field: "quantity", label: "Quantity" },
-  Ql: { field: "quality", label: "Quality" },
+// Maps DPAR dim codes to MonitoringEntry fields and display labels
+const DIM_MAP: Record<string, { field: "timeliness" | "quality" | "quantity"; label: string }> = {
+  T:  { field: "timeliness", label: "Timeliness (1–5)" },
+  Ql: { field: "quality",    label: "Quality (1–5)" },
+  Qn: { field: "quantity",   label: "Quantity (1–5)" },
 };
 
-interface Props {
-  storageKey: string;
-  dims: string[];
+// Column order in the Excel: T → Ql → Qn
+const DIM_ORDER = ["T", "Ql", "Qn"];
+
+function scoreColor(val: number | null): string {
+  if (val === null) return "";
+  if (val >= 5)   return "bg-green-100 text-green-800";
+  if (val >= 4)   return "bg-yellow-100 text-yellow-800";
+  if (val >= 3)   return "bg-orange-100 text-orange-800";
+  return "bg-red-100 text-red-800";
 }
 
-function calcAvg(entries: MonitoringEntry[], field: "timeliness" | "quantity" | "quality"): number | null {
+function calcAvg(entries: MonitoringEntry[], field: "timeliness" | "quality" | "quantity"): number | null {
   const vals = entries.map((e) => e[field]).filter((v): v is number => v !== null);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-export default function MonitoringTool({ storageKey, dims }: Props) {
-  const activeDims = dims.map((d) => DIM_LABELS[d]).filter(Boolean);
+interface Props {
+  storageKey: string;
+  dims: string[];
+  defaultEntries?: Omit<MonitoringEntry, "id">[];
+}
+
+export default function MonitoringTool({ storageKey, dims, defaultEntries }: Props) {
+  // Only include dims that are applicable for this SI, in standard column order
+  const activeDims = DIM_ORDER.filter((d) => dims.includes(d)).map((d) => DIM_MAP[d]);
+
   const [entries, setEntries] = useState<MonitoringEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
-    if (stored) setEntries(JSON.parse(stored));
+    if (stored) {
+      setEntries(JSON.parse(stored));
+    } else if (defaultEntries && defaultEntries.length > 0) {
+      setEntries(defaultEntries.map((e) => ({ ...e, id: crypto.randomUUID() })));
+    }
     setLoaded(true);
-  }, [storageKey]);
+  }, [storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (loaded) localStorage.setItem(storageKey, JSON.stringify(entries));
@@ -52,12 +73,14 @@ export default function MonitoringTool({ storageKey, dims }: Props) {
       {
         id: crypto.randomUUID(),
         activity: "",
-        classification: "",
-        targetDate: "",
-        actualDate: "",
+        referenceNo: "",
+        period: "",
+        dateReceived: "",
+        dateCompleted: "",
         timeliness: null,
-        quantity: null,
         quality: null,
+        quantity: null,
+        remarks: "",
       },
     ]);
   };
@@ -96,56 +119,84 @@ export default function MonitoringTool({ storageKey, dims }: Props) {
         <div className="overflow-x-auto rounded-lg border border-teal-100">
           <table className="w-full text-xs border-collapse">
             <thead>
-              <tr className="bg-teal-600 text-white">
-                <th className="px-2 py-2 text-left font-medium border-r border-teal-500">Activity</th>
-                <th className="px-2 py-2 text-left font-medium border-r border-teal-500">Classification</th>
-                <th className="px-2 py-2 text-left font-medium border-r border-teal-500 whitespace-nowrap">Target Date</th>
-                <th className="px-2 py-2 text-left font-medium border-r border-teal-500 whitespace-nowrap">Actual Date Released / Acted Upon</th>
+              <tr className="bg-[#17375E] text-white">
+                <th className="px-2 py-2 text-center font-medium border-r border-blue-900 w-8">#</th>
+                <th className="px-2 py-2 text-left font-medium border-r border-blue-900 min-w-[180px]">Activity / Document</th>
+                <th className="px-2 py-2 text-left font-medium border-r border-blue-900 min-w-[140px]">Reference No.</th>
+                <th className="px-2 py-2 text-center font-medium border-r border-blue-900 w-16">Period</th>
+                <th className="px-2 py-2 text-center font-medium border-r border-blue-900 w-28">Date Received</th>
+                <th className="px-2 py-2 text-center font-medium border-r border-blue-900 w-28">Date Completed</th>
                 {activeDims.map(({ label }) => (
-                  <th key={label} className="px-2 py-2 text-center font-medium border-r border-teal-500 w-20">{label}</th>
+                  <th key={label} className="px-2 py-2 text-center font-medium border-r border-blue-900 w-24 whitespace-pre-line leading-tight">{label}</th>
                 ))}
+                <th className="px-2 py-2 text-left font-medium border-r border-blue-900 min-w-[160px]">Remarks / Status</th>
                 <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
             <tbody>
               {entries.map((entry, i) => (
-                <tr key={entry.id} className={i % 2 === 0 ? "bg-white" : "bg-teal-50/40"}>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
-                    <input
-                      type="text"
+                <tr key={entry.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  {/* Row number */}
+                  <td className="border-b border-r border-gray-200 px-2 py-1 text-center text-gray-400 font-medium">
+                    {i + 1}
+                  </td>
+                  {/* Activity */}
+                  <td className="border-b border-r border-gray-200 px-1 py-1">
+                    <textarea
                       value={entry.activity}
                       onChange={(e) => update(entry.id, "activity", e.target.value)}
-                      className="w-full min-w-[140px] text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
-                      placeholder="Activity description"
+                      rows={2}
+                      className="w-full text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5 resize-none"
+                      placeholder="Activity / Document"
                     />
                   </td>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
+                  {/* Reference No. */}
+                  <td className="border-b border-r border-gray-200 px-1 py-1">
                     <input
                       type="text"
-                      value={entry.classification}
-                      onChange={(e) => update(entry.id, "classification", e.target.value)}
-                      className="w-full min-w-[100px] text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
-                      placeholder="e.g. Guidelines"
+                      value={entry.referenceNo}
+                      onChange={(e) => update(entry.id, "referenceNo", e.target.value)}
+                      className="w-full text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
+                      placeholder="e.g. 2025-HRDD-0023260"
                     />
                   </td>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
+                  {/* Period */}
+                  <td className="border-b border-r border-gray-200 px-1 py-1 text-center">
+                    <select
+                      value={entry.period}
+                      onChange={(e) => update(entry.id, "period", e.target.value)}
+                      className="w-full text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
+                    >
+                      <option value="">—</option>
+                      <option>Q1</option>
+                      <option>Q2</option>
+                      <option>Q3</option>
+                      <option>Q4</option>
+                    </select>
+                  </td>
+                  {/* Date Received */}
+                  <td className="border-b border-r border-gray-200 px-1 py-1">
                     <input
-                      type="date"
-                      value={entry.targetDate}
-                      onChange={(e) => update(entry.id, "targetDate", e.target.value)}
-                      className="text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
+                      type="text"
+                      value={entry.dateReceived}
+                      onChange={(e) => update(entry.id, "dateReceived", e.target.value)}
+                      className="w-full text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
+                      placeholder="e.g. Aug 28, 2025"
                     />
                   </td>
-                  <td className="border-b border-r border-gray-100 px-1 py-1">
+                  {/* Date Completed */}
+                  <td className="border-b border-r border-gray-200 px-1 py-1">
                     <input
-                      type="date"
-                      value={entry.actualDate}
-                      onChange={(e) => update(entry.id, "actualDate", e.target.value)}
-                      className="text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
+                      type="text"
+                      value={entry.dateCompleted}
+                      onChange={(e) => update(entry.id, "dateCompleted", e.target.value)}
+                      className="w-full text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5"
+                      placeholder="e.g. Aug 29, 2025"
                     />
                   </td>
+                  {/* Dimension scores */}
                   {activeDims.map(({ field }) => (
-                    <td key={field} className="border-b border-r border-gray-100 px-1 py-1">
+                    <td key={field} className={`border-b border-r border-gray-200 px-1 py-1 text-center ${scoreColor(entry[field])}`}>
                       <input
                         type="number"
                         min="1"
@@ -158,7 +209,18 @@ export default function MonitoringTool({ storageKey, dims }: Props) {
                       />
                     </td>
                   ))}
-                  <td className="border-b border-gray-100 px-1 py-1 text-center">
+                  {/* Remarks */}
+                  <td className="border-b border-r border-gray-200 px-1 py-1">
+                    <textarea
+                      value={entry.remarks}
+                      onChange={(e) => update(entry.id, "remarks", e.target.value)}
+                      rows={2}
+                      className="w-full text-xs bg-transparent focus:outline-none focus:ring-1 focus:ring-teal-300 rounded px-1 py-0.5 resize-none"
+                      placeholder="Notes / status"
+                    />
+                  </td>
+                  {/* Delete */}
+                  <td className="border-b border-gray-200 px-1 py-1 text-center">
                     <button
                       onClick={() => remove(entry.id)}
                       className="text-red-400 hover:text-red-600 font-bold text-base leading-none"
@@ -169,17 +231,18 @@ export default function MonitoringTool({ storageKey, dims }: Props) {
                   </td>
                 </tr>
               ))}
-              {/* Averages row */}
-              <tr className="bg-yellow-50 font-bold">
-                <td colSpan={4} className="border-t border-gray-200 px-2 py-2 text-right text-xs text-gray-600 font-semibold">
-                  Average
+              {/* Quarter averages row */}
+              <tr className="bg-[#DAEEF3] font-semibold">
+                <td colSpan={6} className="border-t-2 border-gray-300 px-3 py-2 text-right text-xs text-[#17375E]">
+                  Average ({entries.length} {entries.length === 1 ? "entry" : "entries"})
                 </td>
                 {activeDims.map(({ field }) => (
-                  <td key={field} className={`border-t border-l border-gray-200 px-2 py-2 text-center text-xs ${ratingColor(dimAvgs[field] ?? null)}`}>
+                  <td key={field} className={`border-t-2 border-l border-gray-300 px-2 py-2 text-center text-xs font-bold ${ratingColor(dimAvgs[field] ?? null)} bg-green-50`}>
                     {fmt(dimAvgs[field] ?? null)}
                   </td>
                 ))}
-                <td className="border-t border-gray-200"></td>
+                <td className="border-t-2 border-l border-gray-300"></td>
+                <td className="border-t-2 border-gray-300"></td>
               </tr>
             </tbody>
           </table>
